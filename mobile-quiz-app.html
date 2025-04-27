@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>健康信息学题库自测</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+  <style>
+    body {
+      touch-action: manipulation;
+      -webkit-text-size-adjust: 100%;
+    }
+    .option-btn {
+      transition: all 0.2s ease;
+    }
+    .option-btn:active {
+      transform: scale(0.98);
+    }
+    .fade-in {
+      animation: fadeIn 0.5s;
+    }
+    @keyframes fadeIn {
+      0% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div id="app" class="w-full max-w-xl mx-auto bg-white shadow-xl p-4 sm:p-6 min-h-screen flex flex-col">
+    <header class="mb-6">
+      <h1 class="text-2xl font-bold text-center">健康信息学题库自测</h1>
+      <div class="flex justify-between items-center mt-4">
+        <div id="progressText" class="text-gray-600 font-medium"></div>
+        <div class="w-24 bg-gray-200 rounded-full h-2.5">
+          <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+        </div>
+      </div>
+    </header>
+
+    <main class="flex-grow flex flex-col">
+      <!-- 题干 -->
+      <div id="questionBox" class="text-lg font-medium mb-6 fade-in"></div>
+
+      <!-- 选项列表（仅在选择题显示） -->
+      <div id="optionsBox" class="space-y-3 mb-6 flex-grow"></div>
+
+      <!-- 判断按钮（仅在判断题显示） -->
+      <div id="tfButtons" class="grid grid-cols-2 gap-4 mb-6 hidden">
+        <button class="py-3 px-6 rounded-xl bg-blue-500 text-white font-medium text-lg shadow option-btn" onclick="submitTF(true)">正确</button>
+        <button class="py-3 px-6 rounded-xl bg-red-500 text-white font-medium text-lg shadow option-btn" onclick="submitTF(false)">错误</button>
+      </div>
+
+      <!-- 结果提示 -->
+      <div id="resultBox" class="text-center text-xl font-semibold py-4 mb-4 rounded-lg hidden"></div>
+    </main>
+
+    <!-- 控制按钮 -->
+    <footer class="mt-auto pt-4">
+      <div class="flex justify-between">
+        <button id="prevBtn" class="py-3 px-6 rounded-xl bg-gray-200 font-medium option-btn" onclick="prev()">上一题</button>
+        <button id="nextBtn" class="py-3 px-6 rounded-xl bg-green-500 text-white font-medium option-btn" onclick="next()">下一题</button>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // 完整题库 - 这里需要添加200道选择题和200道判断题
+    const questions = [
+      { id: 1, type: 'choice', q: '健康信息学（Health Informatics, HI）的核心目标是：',
+        options: ['改善医疗机构的经济效益', '提高医学研究和健康决策的质量与效率', '开发电子健康设备', '管理医院员工信息'], answer: 1 },
+      { id: 2, type: 'choice', q: '下列关于"健康"概念的表述，哪项正确？',
+        options: ['健康仅指没有疾病或虚弱状态', '健康包括身体、心理和社会适应良好的状态', '健康与医疗保健无关', '健康只是个体的生理指标正常'], answer: 1 },
+      { id: 3, type: 'choice', q: '健康信息学的学科定位是：',
+        options: ['基础医学', '临床医学', '交叉学科', '卫生管理学'], answer: 2 },
+      { id: 4, type: 'choice', q: '健康信息学不包括以下哪个领域？',
+        options: ['医学信息学', '护理信息学', '药学信息学', '遗传工程学'], answer: 3 },
+      { id: 5, type: 'choice', q: '在健康信息学中，以下哪项不属于数据科学的范畴？',
+        options: ['数据挖掘', '机器学习', '自然语言处理', '手术技能训练'], answer: 3 },
+      // 这里可以添加更多选择题...
+      
+      { id: 61, type: 'tf', q: '健康信息学是一门以改善人类健康为动力，对医学和健康领域的数据、信息、知识进行系统处理的学科。', answer: true },
+      { id: 62, type: 'tf', q: '健康包括身体、心理和社会适应完好的状态。', answer: true },
+      { id: 63, type: 'tf', q: '健康信息学与医学信息学是完全相同的概念。', answer: false },
+      { id: 64, type: 'tf', q: '大数据分析在现代健康信息学中不起重要作用。', answer: false },
+      { id: 65, type: 'tf', q: '人工智能技术已被广泛应用于健康信息学领域。', answer: true },
+      // 这里可以添加更多判断题...
+    ];
+
+    // 用户答题记录
+    const userAnswers = new Array(questions.length).fill(null);
+    let currentIndex = 0;
+    
+    // 获取DOM元素
+    const questionBox = document.getElementById('questionBox');
+    const optionsBox = document.getElementById('optionsBox');
+    const tfButtons = document.getElementById('tfButtons');
+    const resultBox = document.getElementById('resultBox');
+    const progressText = document.getElementById('progressText');
+    const progressBar = document.getElementById('progressBar');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+
+    // 渲染当前题目
+    function render() {
+      const item = questions[currentIndex];
+      questionBox.textContent = (currentIndex + 1) + '. ' + item.q;
+      questionBox.classList.add('fade-in');
+      
+      resultBox.classList.add('hidden');
+      
+      // 更新进度条
+      progressText.textContent = `${currentIndex + 1}/${questions.length}`;
+      const progress = ((currentIndex + 1) / questions.length) * 100;
+      progressBar.style.width = `${progress}%`;
+      
+      // 禁用或启用上一题按钮
+      prevBtn.disabled = currentIndex === 0;
+      prevBtn.classList.toggle('opacity-50', currentIndex === 0);
+      
+      // 更新下一题按钮文本
+      nextBtn.textContent = currentIndex === questions.length - 1 ? '完成' : '下一题';
+
+      // 根据题目类型渲染不同的界面
+      if (item.type === 'choice') {
+        renderChoiceQuestion(item);
+      } else {
+        renderTrueFalseQuestion();
+      }
+      
+      // 如果用户已经答过这题，显示结果
+      if (userAnswers[currentIndex] !== null) {
+        showSavedResult();
+      }
+    }
+
+    // 渲染选择题
+    function renderChoiceQuestion(item) {
+      optionsBox.innerHTML = '';
+      tfButtons.classList.add('hidden');
+      
+      item.options.forEach((opt, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'w-full text-left py-3 px-4 border rounded-xl hover:bg-blue-50 option-btn shadow-sm';
+        btn.textContent = String.fromCharCode(65 + idx) + '. ' + opt;
+        btn.onclick = () => submitChoice(idx);
+        
+        // 如果用户已经选择过此选项，显示选中状态
+        if (userAnswers[currentIndex] === idx) {
+          btn.classList.add('bg-blue-100', 'border-blue-300');
+        }
+        
+        optionsBox.appendChild(btn);
+      });
+    }
+
+    // 渲染判断题
+    function renderTrueFalseQuestion() {
+      optionsBox.innerHTML = '';
+      tfButtons.classList.remove('hidden');
+    }
+
+    // 提交选择题答案
+    function submitChoice(selected) {
+      const item = questions[currentIndex];
+      const correct = selected === item.answer;
+      
+      // 保存用户答案
+      userAnswers[currentIndex] = selected;
+      
+      // 显示结果
+      showResult(correct);
+      
+      // 高亮选中的选项
+      const options = optionsBox.querySelectorAll('button');
+      options.forEach((btn, idx) => {
+        btn.classList.remove('bg-blue-100', 'border-blue-300', 'bg-green-100', 'border-green-300', 'bg-red-100', 'border-red-300');
+        
+        if (idx === selected) {
+          if (correct) {
+            btn.classList.add('bg-green-100', 'border-green-300');
+          } else {
+            btn.classList.add('bg-red-100', 'border-red-300');
+          }
+        }
+        
+        if (idx === item.answer && !correct) {
+          btn.classList.add('bg-green-100', 'border-green-300');
+        }
+      });
+    }
+
+    // 提交判断题答案
+    function submitTF(selectedBool) {
+      const item = questions[currentIndex];
+      const correct = selectedBool === item.answer;
+      
+      // 保存用户答案
+      userAnswers[currentIndex] = selectedBool;
+      
+      // 显示结果
+      showResult(correct);
+    }
+
+    // 显示结果
+    function showResult(correct) {
+      resultBox.textContent = correct ? '回答正确！' : '回答错误！';
+      resultBox.className = correct
+        ? 'text-center text-xl font-semibold text-green-600 bg-green-50 py-4 mb-4 rounded-lg'
+        : 'text-center text-xl font-semibold text-red-600 bg-red-50 py-4 mb-4 rounded-lg';
+      resultBox.classList.remove('hidden');
+    }
+
+    // 显示已保存的结果
+    function showSavedResult() {
+      const item = questions[currentIndex];
+      let correct;
+      
+      if (item.type === 'choice') {
+        correct = userAnswers[currentIndex] === item.answer;
+        
+        // 高亮选中的选项
+        const options = optionsBox.querySelectorAll('button');
+        options.forEach((btn, idx) => {
+          btn.classList.remove('bg-blue-100', 'border-blue-300', 'bg-green-100', 'border-green-300', 'bg-red-100', 'border-red-300');
+          
+          if (idx === userAnswers[currentIndex]) {
+            if (correct) {
+              btn.classList.add('bg-green-100', 'border-green-300');
+            } else {
+              btn.classList.add('bg-red-100', 'border-red-300');
+            }
+          }
+          
+          if (idx === item.answer && !correct) {
+            btn.classList.add('bg-green-100', 'border-green-300');
+          }
+        });
+      } else {
+        correct = userAnswers[currentIndex] === item.answer;
+      }
+      
+      showResult(correct);
+    }
+
+    // 上一题
+    function prev() {
+      if (currentIndex > 0) {
+        currentIndex--;
+        render();
+      }
+    }
+
+    // 下一题
+    function next() {
+      if (currentIndex < questions.length - 1) {
+        currentIndex++;
+        render();
+      } else {
+        // 如果是最后一题，显示完成信息
+        showCompletion();
+      }
+    }
+
+    // 显示完成界面
+    function showCompletion() {
+      // 计算正确率
+      const totalAnswered = userAnswers.filter(a => a !== null).length;
+      const correctAnswers = userAnswers.reduce((count, answer, index) => {
+        const question = questions[index];
+        if (answer !== null) {
+          if (question.type === 'choice') {
+            return count + (answer === question.answer ? 1 : 0);
+          } else {
+            return count + (answer === question.answer ? 1 : 0);
+          }
+        }
+        return count;
+      }, 0);
+      
+      const percentage = totalAnswered > 0 ? Math.round((correctAnswers / totalAnswered) * 100) : 0;
+      
+      // 清空主内容区
+      questionBox.innerHTML = '';
+      optionsBox.innerHTML = '';
+      tfButtons.classList.add('hidden');
+      resultBox.classList.add('hidden');
+      
+      // 创建完成界面
+      const completionDiv = document.createElement('div');
+      completionDiv.className = 'text-center py-8 fade-in';
+      completionDiv.innerHTML = `
+        <h2 class="text-2xl font-bold mb-4">测试完成！</h2>
+        <div class="text-lg mb-2">你已完成 ${totalAnswered}/${questions.length} 题</div>
+        <div class="text-xl font-bold ${percentage >= 60 ? 'text-green-600' : 'text-red-600'} mb-6">
+          正确率: ${percentage}% (${correctAnswers}/${totalAnswered})
+        </div>
+        <button id="restartBtn" class="py-3 px-6 rounded-xl bg-blue-500 text-white font-medium option-btn">重新开始</button>
+      `;
+      
+      questionBox.appendChild(completionDiv);
+      
+      // 隐藏导航按钮
+      prevBtn.classList.add('hidden');
+      nextBtn.classList.add('hidden');
+      
+      // 添加重新开始按钮事件
+      document.getElementById('restartBtn').addEventListener('click', () => {
+        // 重置用户答案
+        userAnswers.fill(null);
+        currentIndex = 0;
+        
+        // 显示导航按钮
+        prevBtn.classList.remove('hidden');
+        nextBtn.classList.remove('hidden');
+        
+        // 重新渲染题目
+        render();
+      });
+    }
+
+    // 处理触摸事件，添加触摸滑动切换题目功能
+    let touchStartX = 0;
+    let touchEndX = 0;
+    
+    document.addEventListener('touchstart', e => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, false);
+    
+    document.addEventListener('touchend', e => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    }, false);
+    
+    function handleSwipe() {
+      const swipeThreshold = 100;
+      
+      if (touchEndX - touchStartX > swipeThreshold) {
+        // 右滑，上一题
+        prev();
+      } else if (touchStartX - touchEndX > swipeThreshold) {
+        // 左滑，下一题
+        next();
+      }
+    }
+
+    // 初始化
+    render();
+  </script>
+</body>
+</html>
